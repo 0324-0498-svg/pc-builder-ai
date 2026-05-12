@@ -1,44 +1,44 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-
-app = Flask(__name__)
-CORS(app) 
-
-@app.route('/generate-build', methods=['POST']) # Ibalik sa POST
+@app.route('/generate-build', methods=['POST'])
 def generate_build():
     try:
-        # Kunin ang data mula sa JSON body
         data = request.get_json()
-        if not data:
-            return jsonify({"status": "error", "message": "No data received"}), 400
-
         budget = float(data.get('budget', 0))
-        purpose = data.get('purpose', 'gaming')
-        era = data.get('era', 'all')
-        parts = data.get('parts', []) # Ito yung listahan mula sa DB mo
+        parts = data.get('parts', []) # Ito yung listahan mula sa database mo
 
-        if budget < 8000:
-            return jsonify({"status": "error", "message": "Budget is too low"}), 400
+        # 1. Hiwalayin ang parts per category
+        categorized = {}
+        for p in parts:
+            cat = p['category']
+            if cat not in categorized:
+                categorized[cat] = []
+            categorized[cat].append(p)
 
-        # Simple Logic para sa response (dahil kailangan ng frontend mo ang 'build' object)
-        # Sa ngayon, ibabalik muna natin ang allocation para hindi mag-error ang JS
-        response = {
-            "status": "success",
-            "total_spent": budget,
-            "suggested_tier": "Entry" if budget < 30000 else "Mid-Range" if budget < 70000 else "High-End",
-            "build": {
-                "CPU": {"name": "Calculating...", "price": budget * 0.25, "brand": "AI Processing"},
-                "GPU": {"name": "Calculating...", "price": budget * 0.40, "brand": "AI Processing"},
-                "RAM": {"name": "Calculating...", "price": budget * 0.10, "brand": "AI Processing"},
-                "SSD": {"name": "Calculating...", "price": budget * 0.10, "brand": "AI Processing"},
-                "PSU": {"name": "Calculating...", "price": budget * 0.10, "brand": "AI Processing"},
-                "CASE": {"name": "Calculating...", "price": budget * 0.05, "brand": "AI Processing"}
-            }
+        # 2. Simple AI Selection Logic (Pipili ng pinakamahal na pasok sa budget)
+        def pick_part(category, max_price):
+            options = [p for p in categorized.get(category, []) if p['price'] <= max_price]
+            if not options:
+                return {"name": f"No {category} in budget", "price": 0, "brand": "N/A"}
+            # Pipiliin ang pinakamahal na pasok sa budget (Best performance)
+            return max(options, key=lambda x: x['price'])
+
+        # 3. Budget Allocation (Example: 40% GPU, 20% CPU, etc.)
+        final_build = {
+            "GPU": pick_part("GPU", budget * 0.40),
+            "CPU": pick_part("CPU", budget * 0.25),
+            "RAM": pick_part("RAM", budget * 0.10),
+            "SSD": pick_part("SSD", budget * 0.10),
+            "PSU": pick_part("PSU", budget * 0.10),
+            "CASE": pick_part("CASE", budget * 0.05)
         }
-        return jsonify(response)
+
+        total_spent = sum(item['price'] for item in final_build.values())
+
+        return jsonify({
+            "status": "success",
+            "total_spent": total_spent,
+            "suggested_tier": "Mid-Range" if budget > 40000 else "Budget",
+            "build": final_build
+        })
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True)

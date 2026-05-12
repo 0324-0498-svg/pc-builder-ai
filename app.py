@@ -4,7 +4,7 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app) # This allows your InfinityFree PHP site to access this API
 
-@app.route('/generate-build', methods=['POST', 'GET'])
+@app.route('/generate-build', methods=['GET']) # Change POST to GET
 def generate_build():
     # Get budget from the request (default to 0 if not provided)
     data = request.get_json() if request.is_json else request.args
